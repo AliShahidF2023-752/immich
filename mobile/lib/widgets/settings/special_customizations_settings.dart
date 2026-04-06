@@ -107,7 +107,7 @@ class SpecialCustomizationsSettings extends HookConsumerWidget {
             style: context.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
           ),
           subtitle: Text(
-            storageUsed == null
+            storageUsed.value == null
                 ? '...'
                 : formatHumanReadableBytes(storageUsed.value ?? 0, 2),
             style: context.textTheme.bodyMedium,

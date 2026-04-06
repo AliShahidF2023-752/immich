@@ -185,7 +185,9 @@ class LocalOcrService {
         final item = pending.first;
         await _processItem(item);
 
-        if (item.status == OcrStatus.failed) {
+        // Re-fetch to check the updated status after processing.
+        final updated = await _repository.getByAssetId(item.assetId);
+        if (updated != null && updated.status == OcrStatus.failed) {
           batchErrors++;
         }
 

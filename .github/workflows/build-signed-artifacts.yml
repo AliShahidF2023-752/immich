@@ -1,0 +1,235 @@
+name: Build Signed APK and IPA (Test Keys)
+
+# Runs on every push / PR and on manual trigger.
+# No repository secrets are required — test signing credentials
+# are generated at runtime.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared Flutter setup steps (referenced by both jobs via reusable actions)
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 1 — Android: generate a test JKS and build a release APK
+  # ───────────────────────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK (test-signed)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # ── Java (required by Gradle & keytool) ─────────────────────────────
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      # ── Flutter ─────────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: ./mobile/pubspec.yaml
+          cache: true
+
+      # ── Android SDK ──────────────────────────────────────────────────────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      # ── Generate a test JKS keystore (no external secrets needed) ────────
+      - name: Generate test keystore
+        working-directory: ./mobile
+        run: |
+          keytool -genkeypair \
+            -alias testkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 365 \
+            -keystore key.jks \
+            -storepass teststore \
+            -keypass testkey123 \
+            -dname "CN=Test,O=Test,C=US" \
+            -noprompt
+
+      # ── Write key.properties so build.gradle can pick it up ──────────────
+      # The file is read by android/app/build.gradle from rootProject.file('key.properties')
+      # which resolves to mobile/android/key.properties.
+      # storeFile is loaded from key.properties and resolved relative to the
+      # android/ project directory, but build.gradle overrides it with
+      # file("../key.jks") when the file exists — so the keystore at mobile/key.jks
+      # is picked up automatically via the hardcoded ../key.jks path.
+      - name: Write key.properties
+        working-directory: ./mobile/android
+        run: |
+          cat > key.properties <<'EOF'
+          storeFile=../key.jks
+          storePassword=teststore
+          keyAlias=testkey
+          keyPassword=testkey123
+          EOF
+
+      # ── Flutter dependencies ─────────────────────────────────────────────
+      - name: Install Flutter packages
+        working-directory: ./mobile
+        run: flutter pub get
+
+      # ── Code generation ──────────────────────────────────────────────────
+      - name: Generate translations
+        working-directory: ./mobile
+        run: |
+          dart run easy_localization:generate -S ../i18n
+          dart run bin/generate_keys.dart
+
+      - name: Generate Pigeon platform APIs
+        working-directory: ./mobile
+        run: make pigeon
+
+      # ── Build signed release APK ─────────────────────────────────────────
+      - name: Build release APK (per-ABI)
+        working-directory: ./mobile
+        env:
+          ALIAS: testkey
+          ANDROID_KEY_PASSWORD: testkey123
+          ANDROID_STORE_PASSWORD: teststore
+        run: |
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm,android-arm64,android-x64
+
+      - name: Build universal release APK
+        working-directory: ./mobile
+        env:
+          ALIAS: testkey
+          ANDROID_KEY_PASSWORD: testkey123
+          ANDROID_STORE_PASSWORD: teststore
+        run: flutter build apk --release
+
+      # ── Upload artifacts ─────────────────────────────────────────────────
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-test-signed
+          path: mobile/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 2 — iOS: self-signed ad-hoc certificate + build IPA
+  # ───────────────────────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS IPA (ad-hoc self-signed)
+    runs-on: macos-15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # ── Select a recent stable Xcode ─────────────────────────────────────
+      - name: Select Xcode
+        run: |
+          # Use the latest Xcode available on the runner.
+          # macos-15 ships with Xcode 16.x; fall back to any available version.
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE_PATH" ]; then
+            sudo xcode-select -s "${XCODE_PATH}/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      # ── Flutter ─────────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: ./mobile/pubspec.yaml
+          cache: true
+
+      # ── Flutter dependencies ─────────────────────────────────────────────
+      - name: Install Flutter packages
+        working-directory: ./mobile
+        run: flutter pub get
+
+      # ── Code generation ──────────────────────────────────────────────────
+      - name: Generate translations
+        working-directory: ./mobile
+        run: |
+          dart run easy_localization:generate -S ../i18n
+          dart run bin/generate_keys.dart
+
+      - name: Generate Pigeon platform APIs
+        working-directory: ./mobile
+        run: make pigeon
+
+      # ── CocoaPods ────────────────────────────────────────────────────────
+      - name: Install CocoaPods dependencies
+        working-directory: ./mobile/ios
+        run: pod install
+
+      # ── Build the iOS app and package it as an unsigned IPA ─────────────
+      #
+      # Strategy:
+      #   1. Use `flutter build ios --release --no-codesign` to produce an
+      #      .xcarchive (no Apple team or provisioning profile needed).
+      #   2. Manually zip the .app bundle from the archive into an IPA.
+      #
+      # The resulting IPA is not App-Store-distributable (no Distribution cert)
+      # but is a complete, valid build artifact for CI verification.
+      - name: Build iOS archive (unsigned)
+        working-directory: ./mobile
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Package IPA from xcarchive
+        run: |
+          set -euo pipefail
+
+          # Find the .app produced by flutter build ios
+          APP_PATH=$(find mobile/build/ios/iphoneos -name "*.app" -maxdepth 1 | head -1)
+
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle found — listing build directory:"
+            find mobile/build/ios -maxdepth 3 | sort
+            exit 1
+          fi
+
+          echo "Packaging app: $APP_PATH"
+
+          # Wrap in Payload/ directory as required by the IPA spec
+          mkdir -p /tmp/ipa_payload/Payload
+          cp -r "$APP_PATH" /tmp/ipa_payload/Payload/
+
+          # Create output directory and zip into .ipa
+          mkdir -p mobile/build/ios/ipa
+          (cd /tmp/ipa_payload && zip -r "$GITHUB_WORKSPACE/mobile/build/ios/ipa/Runner.ipa" Payload/)
+
+          echo "IPA created:"
+          ls -lh mobile/build/ios/ipa/
+
+      # ── Upload artifacts ─────────────────────────────────────────────────
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-test-signed
+          path: mobile/build/ios/ipa/*.ipa
+          if-no-files-found: error

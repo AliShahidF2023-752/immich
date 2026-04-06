@@ -248,17 +248,17 @@ class Drift extends $Drift implements IDatabaseRepository {
 
       // v22 → v23: placeholder image table (manual migration, no generated schema)
       if (from < 23 && to >= 23) {
-        await customStatement('''
-          CREATE TABLE IF NOT EXISTS placeholder_image_entity (
-            asset_id TEXT NOT NULL PRIMARY KEY,
-            file_path TEXT NOT NULL,
-            width INTEGER NOT NULL,
-            height INTEGER NOT NULL,
-            quality INTEGER NOT NULL,
-            file_size INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
-          ) WITHOUT ROWID, STRICT
-        ''');
+        await customStatement(
+          "CREATE TABLE IF NOT EXISTS placeholder_image_entity ("
+          "  asset_id TEXT NOT NULL PRIMARY KEY,"
+          "  file_path TEXT NOT NULL,"
+          "  width INTEGER NOT NULL,"
+          "  height INTEGER NOT NULL,"
+          "  quality INTEGER NOT NULL,"
+          "  file_size INTEGER NOT NULL DEFAULT 0,"
+          "  created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)"
+          ")",
+        );
         await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_placeholder_asset_id '
           'ON placeholder_image_entity (asset_id)',
@@ -267,18 +267,18 @@ class Drift extends $Drift implements IDatabaseRepository {
 
       // v23 → v24: local OCR table (manual migration, no generated schema)
       if (from < 24 && to >= 24) {
-        await customStatement('''
-          CREATE TABLE IF NOT EXISTS local_ocr_entity (
-            asset_id TEXT NOT NULL PRIMARY KEY,
-            filename TEXT NOT NULL DEFAULT '',
-            extracted_text TEXT NOT NULL DEFAULT '',
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
-            processed_at INTEGER,
-            status INTEGER NOT NULL DEFAULT 0,
-            failure_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT
-          ) WITHOUT ROWID, STRICT
-        ''');
+        await customStatement(
+          "CREATE TABLE IF NOT EXISTS local_ocr_entity ("
+          "  asset_id TEXT NOT NULL PRIMARY KEY,"
+          "  filename TEXT NOT NULL DEFAULT '',"
+          "  extracted_text TEXT NOT NULL DEFAULT '',"
+          "  created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),"
+          "  processed_at INTEGER,"
+          "  status INTEGER NOT NULL DEFAULT 0,"
+          "  failure_count INTEGER NOT NULL DEFAULT 0,"
+          "  last_error TEXT"
+          ")",
+        );
         await customStatement(
           'CREATE INDEX IF NOT EXISTS idx_local_ocr_asset_id '
           'ON local_ocr_entity (asset_id)',

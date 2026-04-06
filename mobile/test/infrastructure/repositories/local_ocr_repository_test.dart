@@ -8,18 +8,18 @@ import 'package:immich_mobile/infrastructure/repositories/local_ocr.repository.d
 /// Creates the local_ocr_entity table in an in-memory database so that the
 /// repository can be tested without running the full migration path.
 Future<void> _createTable(Drift db) async {
-  await db.customStatement('''
-    CREATE TABLE IF NOT EXISTS local_ocr_entity (
-      asset_id TEXT NOT NULL PRIMARY KEY,
-      filename TEXT NOT NULL DEFAULT '',
-      extracted_text TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL DEFAULT 0,
-      processed_at INTEGER,
-      status INTEGER NOT NULL DEFAULT 0,
-      failure_count INTEGER NOT NULL DEFAULT 0,
-      last_error TEXT
-    ) WITHOUT ROWID, STRICT
-  ''');
+  await db.customStatement(
+    "CREATE TABLE IF NOT EXISTS local_ocr_entity ("
+    "  asset_id TEXT NOT NULL PRIMARY KEY,"
+    "  filename TEXT NOT NULL DEFAULT '',"
+    "  extracted_text TEXT NOT NULL DEFAULT '',"
+    "  created_at INTEGER NOT NULL DEFAULT 0,"
+    "  processed_at INTEGER,"
+    "  status INTEGER NOT NULL DEFAULT 0,"
+    "  failure_count INTEGER NOT NULL DEFAULT 0,"
+    "  last_error TEXT"
+    ")",
+  );
 }
 
 void main() {
