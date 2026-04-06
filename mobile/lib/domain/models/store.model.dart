@@ -94,7 +94,18 @@ enum StoreKey<T> {
   cleanupCutoffDaysAgo<int>._(1011),
   cleanupDefaultsInitialized<bool>._(1012),
 
-  syncMigrationStatus<String>._(1013);
+  syncMigrationStatus<String>._(1013),
+
+  // Placeholder image settings
+  placeholderImagesEnabled<bool>._(1100),
+  placeholderMaxResolution<int>._(1101),
+  placeholderCompression<int>._(1102),
+
+  // On-device OCR settings
+  localOcrEnabled<bool>._(1200),
+  localOcrMode<int>._(1201),
+  localOcrAccuracy<int>._(1202),
+  localOcrScope<int>._(1203);
 
   const StoreKey._(this.id);
   final int id;

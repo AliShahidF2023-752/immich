@@ -69,7 +69,7 @@ android {
 
       keyAlias keyAliasVal ? keyAliasVal : keystoreProperties['keyAlias']
       keyPassword keyPasswordVal ? keyPasswordVal : keystoreProperties['keyPassword']
-      storeFile file("../key.jks") ? file("../key.jks") : file(keystoreProperties['storeFile'])
+      storeFile file("../key.jks").exists() ? file("../key.jks") : file(keystoreProperties['storeFile'] ?: "../key.jks")
       storePassword storePasswordVal ? storePasswordVal : keystoreProperties['storePassword']
     }
   }
