@@ -1,8 +1,10 @@
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/domain/models/search_result.model.dart';
 import 'package:immich_mobile/extensions/string_extensions.dart';
+import 'package:immich_mobile/infrastructure/repositories/local_ocr.repository.dart';
 import 'package:immich_mobile/infrastructure/repositories/search_api.repository.dart';
 import 'package:immich_mobile/models/search/search_filter.model.dart';
+import 'package:immich_mobile/services/local_ocr.service.dart';
 import 'package:logging/logging.dart';
 import 'package:openapi/api.dart' as api show AssetVisibility;
 import 'package:openapi/api.dart' hide AssetVisibility;
@@ -11,7 +13,12 @@ class SearchService {
   final _log = Logger("SearchService");
   final SearchApiRepository _searchApiRepository;
 
-  SearchService(this._searchApiRepository);
+  /// Optional local OCR repository.  When provided and local OCR is enabled,
+  /// [searchLocalOcr] returns matching asset IDs from the on-device database.
+  final LocalOcrRepository? _localOcrRepository;
+
+  SearchService(this._searchApiRepository, {LocalOcrRepository? localOcrRepository})
+      : _localOcrRepository = localOcrRepository;
 
   Future<List<String>?> getSearchSuggestions(
     SearchSuggestionType type, {
@@ -50,6 +57,23 @@ class SearchService {
       _log.severe("Failed to search for assets", error, stackTrace);
     }
     return null;
+  }
+
+  /// Searches the on-device OCR database for [query].
+  ///
+  /// Returns a list of asset IDs whose extracted text contains [query].
+  /// Returns an empty list when local OCR is disabled or the repository is not
+  /// available.
+  Future<List<String>> searchLocalOcr(String query) async {
+    if (!LocalOcrService.isEnabled || _localOcrRepository == null) return [];
+    try {
+      return await _localOcrRepository!.search(query).then(
+            (results) => results.map((r) => r.assetId).toList(),
+          );
+    } catch (e, st) {
+      _log.warning('Local OCR search failed for "$query"', e, st);
+      return [];
+    }
   }
 }
 

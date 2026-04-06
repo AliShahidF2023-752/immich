@@ -60,7 +60,28 @@ enum AppSettingsEnum<T> {
   cleanupKeepMediaType<int>(StoreKey.cleanupKeepMediaType, null, 0),
   cleanupKeepAlbumIds<String>(StoreKey.cleanupKeepAlbumIds, null, ""),
   cleanupCutoffDaysAgo<int>(StoreKey.cleanupCutoffDaysAgo, null, -1),
-  cleanupDefaultsInitialized<bool>(StoreKey.cleanupDefaultsInitialized, null, false);
+  cleanupDefaultsInitialized<bool>(StoreKey.cleanupDefaultsInitialized, null, false),
+
+  // Placeholder image settings
+  placeholderImagesEnabled<bool>(StoreKey.placeholderImagesEnabled, null, false),
+
+  /// 0=240p, 1=480p, 2=720p
+  placeholderMaxResolution<int>(StoreKey.placeholderMaxResolution, null, 0),
+
+  /// Compression quality 1–100 (default 60 %)
+  placeholderCompression<int>(StoreKey.placeholderCompression, null, 60),
+
+  // On-device OCR settings
+  localOcrEnabled<bool>(StoreKey.localOcrEnabled, null, false),
+
+  /// 0=server OCR, 1=local OCR
+  localOcrMode<int>(StoreKey.localOcrMode, null, 0),
+
+  /// 0=Low, 1=Balanced, 2=High
+  localOcrAccuracy<int>(StoreKey.localOcrAccuracy, null, 1),
+
+  /// 0=new photos only, 1=all photos
+  localOcrScope<int>(StoreKey.localOcrScope, null, 0);
 
   const AppSettingsEnum(this.storeKey, this.hiveKey, this.defaultValue);
 

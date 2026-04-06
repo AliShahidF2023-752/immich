@@ -61,6 +61,7 @@ import UIKit
     BackgroundWorkerFgHostApiSetup.setUp(binaryMessenger: engine.binaryMessenger, api: BackgroundWorkerApiImpl())
     ConnectivityApiSetup.setUp(binaryMessenger: engine.binaryMessenger, api: ConnectivityApiImpl())
     NetworkApiSetup.setUp(binaryMessenger: engine.binaryMessenger, api: NetworkApiImpl(viewController: controller))
+    LocalOcrChannel.register(with: engine.registrar(forPlugin: LocalOcrChannel.channelName)!)
   }
   
   public static func cancelPlugins(with engine: FlutterEngine) {
