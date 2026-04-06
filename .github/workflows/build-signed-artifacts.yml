@@ -73,6 +73,7 @@ jobs:
             -storepass teststore \
             -keypass testkey123 \
             -dname "CN=Test,O=Test,C=US" \
+            -storetype JKS \
             -noprompt
 
       # ── Write key.properties so build.gradle can pick it up ──────────────
