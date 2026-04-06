@@ -57,8 +57,12 @@ jobs:
           packages: ''
 
       # ── Generate a test JKS keystore (no external secrets needed) ────────
+      #
+      # build.gradle uses file("../key.jks") inside app/build.gradle, which
+      # resolves to:  mobile/android/app/../key.jks = mobile/android/key.jks
+      # The keystore must therefore be generated in mobile/android/.
       - name: Generate test keystore
-        working-directory: ./mobile
+        working-directory: ./mobile/android
         run: |
           keytool -genkeypair \
             -alias testkey \
@@ -72,17 +76,14 @@ jobs:
             -noprompt
 
       # ── Write key.properties so build.gradle can pick it up ──────────────
-      # The file is read by android/app/build.gradle from rootProject.file('key.properties')
-      # which resolves to mobile/android/key.properties.
-      # storeFile is loaded from key.properties and resolved relative to the
-      # android/ project directory, but build.gradle overrides it with
-      # file("../key.jks") when the file exists — so the keystore at mobile/key.jks
-      # is picked up automatically via the hardcoded ../key.jks path.
+      # rootProject.file('key.properties') resolves to mobile/android/key.properties.
+      # The env vars (ALIAS / ANDROID_KEY_PASSWORD / ANDROID_STORE_PASSWORD) are
+      # checked first and take priority; key.properties is the fallback.
       - name: Write key.properties
         working-directory: ./mobile/android
         run: |
           cat > key.properties <<'EOF'
-          storeFile=../key.jks
+          storeFile=key.jks
           storePassword=teststore
           keyAlias=testkey
           keyPassword=testkey123
