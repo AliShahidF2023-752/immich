@@ -109,7 +109,7 @@ class SpecialCustomizationsSettings extends HookConsumerWidget {
           subtitle: Text(
             storageUsed.value == null
                 ? '...'
-                : formatHumanReadableBytes(storageUsed.value ?? 0, 2),
+                : formatHumanReadableBytes(storageUsed.value!, 2),
             style: context.textTheme.bodyMedium,
           ),
           trailing: TextButton(

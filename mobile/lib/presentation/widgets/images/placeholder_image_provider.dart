@@ -17,7 +17,7 @@ class PlaceholderImageProvider extends CancellableImageProvider<PlaceholderImage
   /// The asset identifier (remote UUID or local device id).
   final String assetId;
 
-  /// Back-reference to the service that owns the on-device storage.
+  /// Reference to the service managing on-device placeholder storage.
   final PlaceholderService placeholderService;
 
   PlaceholderImageProvider({
