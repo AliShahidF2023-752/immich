@@ -306,6 +306,11 @@ class _ResizeResult {
 }
 
 /// Top-level function usable with [compute].
+///
+/// [_ResizeRequest.quality] (1–100) applies an additional scale factor on top
+/// of [_ResizeRequest.maxSide]: quality=100 keeps maxSide as-is, quality=50
+/// reduces both sides by a further 50 %, etc.  This gives the user meaningful
+/// control over the final file size even when using lossless PNG encoding.
 Future<_ResizeResult?> _resizeAndEncodeImage(_ResizeRequest req) async {
   try {
     // Decode to get natural dimensions.
@@ -319,16 +324,14 @@ Future<_ResizeResult?> _resizeAndEncodeImage(_ResizeRequest req) async {
     src.dispose();
     codec.dispose();
 
-    final scale = req.maxSide / max(srcW, srcH);
-    final int dstW;
-    final int dstH;
-    if (scale < 1.0) {
-      dstW = (srcW * scale).round();
-      dstH = (srcH * scale).round();
-    } else {
-      dstW = srcW;
-      dstH = srcH;
-    }
+    // Apply the maxSide cap first.
+    final capScale = req.maxSide / max(srcW, srcH);
+    // Then apply the quality-based scale (quality 100 = no additional reduction).
+    final qualityScale = req.quality / 100.0;
+    final combinedScale = min(capScale, 1.0) * qualityScale;
+
+    final int dstW = max(1, (srcW * combinedScale).round());
+    final int dstH = max(1, (srcH * combinedScale).round());
 
     // Re-decode at the target resolution.
     final resizedCodec = await ui.instantiateImageCodecFromBuffer(
@@ -339,7 +342,7 @@ Future<_ResizeResult?> _resizeAndEncodeImage(_ResizeRequest req) async {
     final resizedFrame = await resizedCodec.getNextFrame();
     final resizedImage = resizedFrame.image;
 
-    // Encode as PNG (Flutter's built-in encoder).
+    // Encode as PNG (Flutter's built-in lossless encoder).
     final byteData =
         await resizedImage.toByteData(format: ui.ImageByteFormat.png);
     resizedImage.dispose();

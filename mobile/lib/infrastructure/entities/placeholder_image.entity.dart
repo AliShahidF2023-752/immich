@@ -4,6 +4,7 @@ import 'package:immich_mobile/infrastructure/utils/drift_default.mixin.dart';
 /// Stores a mapping from [assetId] (remote or local asset identifier)
 /// to the on-device path of its low-resolution placeholder image.
 ///
+/// Placeholder files are stored as PNG-encoded images.
 /// Records are keyed by [assetId] so that placeholder generation is idempotent —
 /// re-running the generation for the same asset simply updates the existing row.
 @TableIndex.sql(
@@ -25,7 +26,11 @@ class PlaceholderImageEntity extends Table with DriftDefaultsMixin {
   /// Height of the generated placeholder in pixels.
   IntColumn get height => integer()();
 
-  /// JPEG/WebP quality used when writing the file (1–100).
+  /// JPEG quality used when writing the file (1–100).
+  ///
+  /// Stored for future use when a JPEG encoder is available.
+  /// The current PNG implementation uses lossless encoding;
+  /// this value is preserved for settings persistence and UI display.
   IntColumn get quality => integer()();
 
   /// Approximate size of the placeholder file in bytes.
