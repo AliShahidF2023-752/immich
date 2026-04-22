@@ -35,6 +35,37 @@ class LocalOcrChannel: NSObject, FlutterPlugin {
       }
       let accuracyIdx = args["accuracy"] as? Int ?? 1
       recognizeText(at: path, accuracyIdx: accuracyIdx, result: result)
+      
+    case "recognizeTextBlocks":
+      guard
+        let args = call.arguments as? [String: Any],
+        let data = args["data"] as? FlutterStandardTypedData
+      else {
+        result(FlutterError(code: "INVALID_ARGS", message: "data is required", details: nil))
+        return
+      }
+      let accuracyIdx = args["accuracy"] as? Int ?? 1
+      OCRService.recognizeText(from: data.data, accuracyIdx: accuracyIdx) { response in
+          DispatchQueue.main.async {
+              switch response {
+              case .success(let blocks):
+                  let blocksArray = blocks.map { block -> [String: Any] in
+                      return [
+                          "text": block.text,
+                          "rect": [
+                              "x": block.boundingBox.origin.x,
+                              "y": block.boundingBox.origin.y,
+                              "width": block.boundingBox.size.width,
+                              "height": block.boundingBox.size.height
+                          ]
+                      ]
+                  }
+                  result(blocksArray)
+              case .failure(let error):
+                  result(FlutterError(code: "OCR_PERFORM_ERROR", message: error.localizedDescription, details: nil))
+              }
+          }
+      }
 
     default:
       result(FlutterMethodNotImplemented)
@@ -50,66 +81,20 @@ class LocalOcrChannel: NSObject, FlutterPlugin {
     accuracyIdx: Int,
     result: @escaping FlutterResult
   ) {
-    DispatchQueue.global(qos: .utility).async {
-      guard let image = UIImage(contentsOfFile: path),
-            let cgImage = image.cgImage
-      else {
-        DispatchQueue.main.async {
-          result(
-            FlutterError(
-              code: "IMAGE_NOT_FOUND",
-              message: "Cannot load image at path: \(path)",
-              details: nil
-            )
-          )
-        }
-        return
-      }
-
-      let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-
-      let level: VNRequestTextRecognitionLevel = accuracyIdx == 0 ? .fast : .accurate
-
-      let request = VNRecognizeTextRequest { request, error in
-        if let error = error {
-          DispatchQueue.main.async {
-            result(
-              FlutterError(
-                code: "OCR_ERROR",
-                message: error.localizedDescription,
-                details: nil
-              )
-            )
-          }
+      guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+          result(FlutterError(code: "IMAGE_NOT_FOUND", message: "Cannot load image at path", details: nil))
           return
-        }
-
-        let observations = request.results as? [VNRecognizedTextObservation] ?? []
-        let text = observations
-          .compactMap { $0.topCandidates(1).first?.string }
-          .joined(separator: "\n")
-
-        DispatchQueue.main.async {
-          result(text)
-        }
       }
-
-      request.recognitionLevel = level
-      request.usesLanguageCorrection = true
-
-      do {
-        try requestHandler.perform([request])
-      } catch {
-        DispatchQueue.main.async {
-          result(
-            FlutterError(
-              code: "OCR_PERFORM_ERROR",
-              message: error.localizedDescription,
-              details: nil
-            )
-          )
-        }
+      OCRService.recognizeText(from: data, accuracyIdx: accuracyIdx) { response in
+          DispatchQueue.main.async {
+              switch response {
+              case .success(let blocks):
+                  let text = blocks.map { $0.text }.joined(separator: "\n")
+                  result(text)
+              case .failure(let error):
+                  result(FlutterError(code: "OCR_PERFORM_ERROR", message: error.localizedDescription, details: nil))
+              }
+          }
       }
-    }
   }
 }

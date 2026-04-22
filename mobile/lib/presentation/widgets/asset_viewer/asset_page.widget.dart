@@ -23,6 +23,9 @@ import 'package:immich_mobile/services/app_settings.service.dart';
 import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
 import 'package:immich_mobile/widgets/common/immich_loading_indicator.dart';
 import 'package:immich_mobile/widgets/photo_view/photo_view.dart';
+import 'dart:ui' as ui;
+import 'package:immich_mobile/providers/live_text.provider.dart';
+import 'package:immich_mobile/presentation/widgets/asset_viewer/live_text_overlay.widget.dart';
 
 enum _DragIntent { none, scroll, dismiss }
 
@@ -56,6 +59,12 @@ class _AssetPageState extends ConsumerState<AssetPage> {
   _DragIntent _dragIntent = _DragIntent.none;
   Drag? _drag;
 
+  /// Tracks which asset ID we've already triggered OCR for, to avoid
+  /// adding duplicate ImageStreamListeners on every rebuild.
+  String? _ocrTriggeredForAssetId;
+  ImageStreamListener? _ocrImageStreamListener;
+  ImageStream? _ocrImageStream;
+
   @override
   void initState() {
     super.initState();
@@ -71,10 +80,49 @@ class _AssetPageState extends ConsumerState<AssetPage> {
 
   @override
   void dispose() {
+    _cleanupOcrListener();
     _scrollController.dispose();
     _scaleBoundarySub?.cancel();
     _eventSubscription?.cancel();
     super.dispose();
+  }
+
+  /// Removes the current OCR image stream listener if one exists.
+  void _cleanupOcrListener() {
+    if (_ocrImageStreamListener != null && _ocrImageStream != null) {
+      _ocrImageStream!.removeListener(_ocrImageStreamListener!);
+    }
+    _ocrImageStreamListener = null;
+    _ocrImageStream = null;
+  }
+
+  /// Triggers OCR for [assetId] exactly once. Subsequent calls with the same
+  /// ID are no-ops, preventing duplicate listeners on rebuilds.
+  void _triggerOcrIfNeeded(String assetId, ImageProvider imageProvider) {
+    if (_ocrTriggeredForAssetId == assetId) return;
+
+    // Clean up any previous listener
+    _cleanupOcrListener();
+    _ocrTriggeredForAssetId = assetId;
+
+    final listener = ImageStreamListener((info, _) async {
+      if (!mounted) return;
+      final state = ref.read(liveTextProvider(assetId));
+      if (state.blocks == null && !state.isProcessing) {
+        final byteData = await info.image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null && mounted) {
+          ref.read(liveTextProvider(assetId).notifier).processImage(
+                assetId,
+                byteData.buffer.asUint8List(),
+              );
+        }
+      }
+    });
+
+    final stream = imageProvider.resolve(const ImageConfiguration());
+    stream.addListener(listener);
+    _ocrImageStreamListener = listener;
+    _ocrImageStream = stream;
   }
 
   void _onEvent(Event event) {
@@ -289,11 +337,18 @@ class _AssetPageState extends ConsumerState<AssetPage> {
   }) {
     final size = context.sizeData;
 
+    final imageProvider = getFullImageProvider(asset, size: size);
+
+    // Trigger OCR only once per asset, only after the image is fully loaded
+    if (isCurrent && asset.isImage && !isPlayingMotionVideo) {
+      _triggerOcrIfNeeded(asset.id, imageProvider);
+    }
+
     if (asset.isImage && !isPlayingMotionVideo) {
       return PhotoView(
         key: Key(asset.heroTag),
         index: widget.index,
-        imageProvider: getFullImageProvider(asset, size: size),
+        imageProvider: imageProvider,
         heroAttributes: heroAttributes,
         loadingBuilder: (context, progress, index) => const Center(child: ImmichLoadingIndicator()),
         gaplessPlayback: true,
@@ -369,6 +424,9 @@ class _AssetPageState extends ConsumerState<AssetPage> {
     }
 
     final isCurrent = currentHeroTag == displayAsset.heroTag;
+    
+    final liveTextState = ref.watch(liveTextProvider(displayAsset.id));
+    final liveTextNotifier = ref.watch(liveTextProvider(displayAsset.id).notifier);
 
     final viewportWidth = MediaQuery.widthOf(context);
     final viewportHeight = MediaQuery.heightOf(context);
@@ -404,6 +462,18 @@ class _AssetPageState extends ConsumerState<AssetPage> {
                     isPlayingMotionVideo: isPlayingMotionVideo,
                   ),
                 ),
+                if (isCurrent && liveTextState.isToggled && liveTextState.blocks != null && !_showingDetails && displayAsset.isImage)
+                  Positioned.fill(
+                    child: LiveTextOverlay(
+                      blocks: liveTextState.blocks!,
+                      imageSize: Size(
+                        displayAsset.width?.toDouble() ?? viewportWidth,
+                        displayAsset.height?.toDouble() ?? viewportHeight,
+                      ),
+                      widgetSize: Size(viewportWidth, viewportHeight),
+                      viewController: _viewController,
+                    ),
+                  ),
                 IgnorePointer(
                   ignoring: !_showingDetails,
                   child: Column(
@@ -427,6 +497,22 @@ class _AssetPageState extends ConsumerState<AssetPage> {
             ),
           ),
         ),
+        if (isCurrent && displayAsset.isImage && !_showingDetails)
+          Positioned(
+            right: 16,
+            bottom: 16 + context.padding.bottom + (stackChildren != null && stackChildren.isNotEmpty ? 60 : 0),
+            child: AnimatedOpacity(
+              opacity: (liveTextState.blocks != null && liveTextState.blocks!.isNotEmpty) ? 1.0 : 0.0,
+              duration: Durations.short2,
+              child: FloatingActionButton.small(
+                heroTag: null,
+                backgroundColor: liveTextState.isToggled ? context.primaryColor : context.colorScheme.surface,
+                foregroundColor: liveTextState.isToggled ? context.colorScheme.onPrimary : context.colorScheme.onSurface,
+                onPressed: () => liveTextNotifier.toggle(),
+                child: const Icon(Icons.text_fields),
+              ),
+            ),
+          ),
         if (stackChildren != null && stackChildren.isNotEmpty)
           Positioned(
             left: 0,
