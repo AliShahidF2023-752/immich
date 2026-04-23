@@ -57,13 +57,14 @@ jobs:
         env:
           FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
 
-      - name: Clean Swift Package Cache
+      # Clean Xcode derived data to force rebuild of Swift packages
+      - name: Clean Xcode DerivedData
         run: |
-          cd mobile/ios
-          rm -rf derivedData/Build
-          xcodebuild clean -workspace Runner.xcworkspace -scheme Runner -configuration Debug 2>/dev/null || true
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          xcodebuild -showsdks
 
       - name: Build iOS app (Debug)
+        timeout-minutes: 30
         run: |
           cd mobile/ios
           xcodebuild \
@@ -72,10 +73,10 @@ jobs:
             -sdk iphonesimulator \
             -configuration Debug \
             clean build \
-            CODE_SIGNING_ALLOWED=NO \
-            SWIFT_PACKAGE_CLEANUP=1
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Build iOS app (Release)
+        timeout-minutes: 30
         run: |
           cd mobile/ios
           xcodebuild \
@@ -89,6 +90,7 @@ jobs:
 
       - name: Run Tests (Simulator)
         if: github.event_name == 'pull_request'
+        timeout-minutes: 30
         run: |
           cd mobile/ios
           xcodebuild test \
@@ -100,6 +102,7 @@ jobs:
 
       - name: Archive app
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        timeout-minutes: 30
         run: |
           cd mobile/ios
           xcodebuild archive \
