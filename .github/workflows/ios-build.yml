@@ -53,10 +53,15 @@ jobs:
         run: |
           cd mobile/ios
           pod deintegrate || true
-          pod cache clean --all || true
-          pod install --project-directory=. --verbose
+          pod install --project-directory=.
         env:
           FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
+
+      - name: Clean Swift Package Cache
+        run: |
+          cd mobile/ios
+          rm -rf derivedData/Build
+          xcodebuild clean -workspace Runner.xcworkspace -scheme Runner -configuration Debug 2>/dev/null || true
 
       - name: Build iOS app (Debug)
         run: |
@@ -67,7 +72,8 @@ jobs:
             -sdk iphonesimulator \
             -configuration Debug \
             clean build \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_PACKAGE_CLEANUP=1
 
       - name: Build iOS app (Release)
         run: |
