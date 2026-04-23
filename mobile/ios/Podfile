@@ -123,4 +123,8 @@ post_install do |installer|
   end
   system("defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES")
   system("defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES")
+  
+  # Fix for swift-structured-queries SwiftSyntax compatibility with Xcode 26.3
+  # Force rebuild of macros by removing prebuilt modules that may be incompatible
+  system("rm -rf Pods/swift-structured-queries/Sources/prebuilts") if File.exist?("Pods/swift-structured-queries")
 end
