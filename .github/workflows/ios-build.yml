@@ -46,10 +46,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
+      - name: Update CocoaPods repository
+        run: pod repo update --silent
+
       - name: Install CocoaPods dependencies
         run: |
           cd mobile/ios
-          pod install --project-directory=.
+          pod deintegrate || true
+          pod cache clean --all || true
+          pod install --project-directory=. --verbose
         env:
           FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
 
