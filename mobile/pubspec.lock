@@ -1592,7 +1592,7 @@ packages:
       path: "."
       ref: e1d813a240b5d5b7e2f141b2b605c5429b7cd006
       resolved-ref: e1d813a240b5d5b7e2f141b2b605c5429b7cd006
-      url: "https://github.com/mertalev/socket.io-client-dart"
+      url: "https://github.com/rikulo/socket.io-client-dart"
     source: git
     version: "3.1.4"
   socket_io_common:
