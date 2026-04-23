@@ -32,6 +32,12 @@ jobs:
           cd mobile
           flutter pub get
 
+      - name: Clean Flutter build artifacts
+        run: |
+          cd mobile
+          flutter clean
+          flutter pub get
+
       - name: Cache Pods directory
         uses: actions/cache@v4
         with:
@@ -46,13 +52,6 @@ jobs:
           pod install --project-directory=.
         env:
           FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
-
-      - name: Set up Ruby environment
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler-cache: true
-          workdir: mobile/ios
 
       - name: Build iOS app (Debug)
         run: |
