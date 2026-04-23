@@ -22,28 +22,6 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Set up Ruby environment
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler-cache: true
-          workdir: mobile/ios
-
-      - name: Install CocoaPods dependencies
-        run: |
-          cd mobile/ios
-          pod install --project-directory=.
-        env:
-          FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
-
-      - name: Cache Pods directory
-        uses: actions/cache@v4
-        with:
-          path: mobile/ios/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v3
         with:
@@ -53,6 +31,28 @@ jobs:
         run: |
           cd mobile
           flutter pub get
+
+      - name: Cache Pods directory
+        uses: actions/cache@v4
+        with:
+          path: mobile/ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd mobile/ios
+          pod install --project-directory=.
+        env:
+          FLUTTER_ROOT: ${{ env.FLUTTER_ROOT }}
+
+      - name: Set up Ruby environment
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          workdir: mobile/ios
 
       - name: Build iOS app (Debug)
         run: |
