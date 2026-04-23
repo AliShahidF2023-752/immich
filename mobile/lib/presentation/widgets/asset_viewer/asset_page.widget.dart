@@ -23,6 +23,9 @@ import 'package:immich_mobile/services/app_settings.service.dart';
 import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
 import 'package:immich_mobile/widgets/common/immich_loading_indicator.dart';
 import 'package:immich_mobile/widgets/photo_view/photo_view.dart';
+import 'package:immich_mobile/domain/models/ocr/recognized_text_block.dart';
+import 'package:immich_mobile/services/ocr_service.dart';
+import 'package:immich_mobile/presentation/widgets/asset_viewer/ocr_overlay.widget.dart';
 
 enum _DragIntent { none, scroll, dismiss }
 
@@ -52,6 +55,13 @@ class _AssetPageState extends ConsumerState<AssetPage> {
   final _scrollController = SnapScrollController();
   double _snapOffset = 0.0;
 
+  ImageStream? _ocrImageStream;
+  ImageStreamListener? _ocrImageListener;
+  List<RecognizedTextBlock> _ocrBlocks = [];
+  bool _isOcrLoading = false;
+  bool _showOcrOverlay = false;
+  Size? _loadedImageSize;
+
   DragStartDetails? _dragStart;
   _DragIntent _dragIntent = _DragIntent.none;
   Drag? _drag;
@@ -71,10 +81,41 @@ class _AssetPageState extends ConsumerState<AssetPage> {
 
   @override
   void dispose() {
+    if (_ocrImageStream != null && _ocrImageListener != null) {
+      _ocrImageStream!.removeListener(_ocrImageListener!);
+    }
     _scrollController.dispose();
     _scaleBoundarySub?.cancel();
     _eventSubscription?.cancel();
     super.dispose();
+  }
+
+  void _resolveImageForOCR(BaseAsset asset) {
+    if (!asset.isImage) {
+      if (_ocrBlocks.isNotEmpty) setState(() => _ocrBlocks = []);
+      return;
+    }
+    final provider = getFullImageProvider(asset, size: context.sizeData);
+    final newStream = provider.resolve(const ImageConfiguration());
+    if (_ocrImageStream != newStream) {
+      if (_ocrImageStream != null && _ocrImageListener != null) {
+        _ocrImageStream!.removeListener(_ocrImageListener!);
+      }
+      _ocrImageStream = newStream;
+      _ocrImageListener = ImageStreamListener((imageInfo, synchronousCall) async {
+        if (_isOcrLoading) return;
+        _isOcrLoading = true;
+        _loadedImageSize = Size(imageInfo.image.width.toDouble(), imageInfo.image.height.toDouble());
+        final blocks = await ocrService.recognizeText(imageInfo.image, asset.heroTag);
+        if (mounted && _ocrImageStream == newStream) {
+          setState(() {
+            _ocrBlocks = blocks;
+          });
+        }
+        _isOcrLoading = false;
+      });
+      _ocrImageStream!.addListener(_ocrImageListener!);
+    }
   }
 
   void _onEvent(Event event) {
@@ -379,6 +420,9 @@ class _AssetPageState extends ConsumerState<AssetPage> {
 
     _snapOffset = detailsOffset - snapTarget;
 
+    if (isCurrent) {
+      _resolveImageForOCR(displayAsset);
+    }
     if (_scrollController.hasClients) {
       _scrollController.snapPosition.snapOffset = _snapOffset;
     }
@@ -404,10 +448,31 @@ class _AssetPageState extends ConsumerState<AssetPage> {
                     isPlayingMotionVideo: isPlayingMotionVideo,
                   ),
                 ),
+                if (isCurrent && _showOcrOverlay && _viewController != null && _loadedImageSize != null)
+                  OcrOverlayWidget(
+                    blocks: _ocrBlocks,
+                    imageSize: _loadedImageSize!,
+                    controller: _viewController!,
+                  ),
                 IgnorePointer(
                   ignoring: !_showingDetails,
                   child: Column(
                     children: [
+                      if (_ocrBlocks.isNotEmpty && isCurrent)
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 16.0, bottom: 16.0),
+                            child: IconButton(
+                              icon: Icon(Icons.text_fields, color: _showOcrOverlay ? Colors.blue : Colors.white),
+                              onPressed: () {
+                                setState(() {
+                                  _showOcrOverlay = !_showOcrOverlay;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
                       SizedBox(height: detailsOffset),
                       GestureDetector(
                         onVerticalDragStart: _beginDrag,
